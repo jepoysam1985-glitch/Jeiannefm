@@ -51,4 +51,37 @@ async function listeners(key, { id, leave, ttlMs }) {
   return Number(res[res.length - 1]) || 0;
 }
 
-module.exports = { hasDb, getJSON, setJSON, listeners };
+
+// ---- Chat/Request helpers (listahan na may limit + rate limit) ----
+const rl = (globalThis.__jfmRl = globalThis.__jfmRl || new Map());
+
+// True kung pwedeng magpatuloy; False kung masyadong mabilis (isang beses kada `secs`)
+async function rateOk(key, secs) {
+  if (!hasDb()) {
+    const now = Date.now();
+    if ((rl.get(key) || 0) > now) return false;
+    rl.set(key, now + secs * 1000);
+    return true;
+  }
+  const [r] = await pipeline([["SET", key, "1", "NX", "EX", String(secs)]]);
+  return r === "OK";
+}
+async function listPush(key, str, max) {
+  if (!hasDb()) { const a = mem.kv.get(key) || []; a.unshift(str); mem.kv.set(key, a.slice(0, max)); return; }
+  await pipeline([["LPUSH", key, str], ["LTRIM", key, "0", String(max - 1)]]);
+}
+async function listRange(key, n) {
+  if (!hasDb()) return (mem.kv.get(key) || []).slice(0, n);
+  const [r] = await pipeline([["LRANGE", key, "0", String(n - 1)]]);
+  return r || [];
+}
+async function listRemove(key, str) {
+  if (!hasDb()) { mem.kv.set(key, (mem.kv.get(key) || []).filter((x) => x !== str)); return; }
+  await pipeline([["LREM", key, "0", str]]);
+}
+async function del(key) {
+  if (!hasDb()) { mem.kv.delete(key); return; }
+  await pipeline([["DEL", key]]);
+}
+
+module.exports = { hasDb, getJSON, setJSON, listeners, rateOk, listPush, listRange, listRemove, del };

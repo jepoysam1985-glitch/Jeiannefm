@@ -3,7 +3,10 @@
 Laman:
 
 ```
-index.html              ang website (radio player, chat, request, admin)
+index.html              ang website (radio player, chat, request)
+admin.html              admin panel (https://jeiannefm.vercel.app/admin)
+api/admin.js            login ng admin (may lockout)
+api/chat.js, requests.js  shared chat at request box
 api/config.js           settings ng admin (logo, banners, links, ad) — GET/POST
 api/listeners.js        live listener count
 api/_store.js           storage helper (Upstash Redis / Vercel KV)
@@ -23,7 +26,7 @@ robots.txt, sitemap.xml, package.json, .env.example
    Vercel > Project > **Storage** > Create > **Upstash Redis** (libre ang free plan) > Connect to project.
    Awtomatikong nalalagay ang `KV_REST_API_URL` at `KV_REST_API_TOKEN`.
 4. I-**Redeploy** (kailangan para pumasok ang bagong environment variables).
-5. Buksan ang `https://jeiannefm.vercel.app/#admin`, mag-login gamit ang `ADMIN_PASSWORD`.
+5. Buksan ang `https://jeiannefm.vercel.app/admin`, mag-login gamit ang `ADMIN_PASSWORD`.
 
 Kung walang database: gagana pa rin ang site, pero pansamantala lang ang naka-save na settings at listener count
 (nawawala kapag nag-restart ang server). Kaya kailangan ang Upstash para sa tuloy-tuloy na gamit.
