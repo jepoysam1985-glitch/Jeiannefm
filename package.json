@@ -1,0 +1,12 @@
+{
+  "name": "jeianne-fm",
+  "version": "1.0.0",
+  "description": "JEIANNE FM - online radio station (static site + Vercel serverless API)",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  }
+}
