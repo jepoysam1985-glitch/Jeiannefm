@@ -867,14 +867,34 @@ window.JFM_LOGO="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BS
       mute.addEventListener("click", function () { audio.muted = !audio.muted; mute.textContent = audio.muted ? "🔇" : "🔊"; });
       window.jfmPlay = play; window.jfmPause = pause;
 
-      // NOW PLAYING (Zeno metadata)
+      // NOW PLAYING (Zeno metadata) - may watchdog + auto-reconnect para hindi ma-stuck ang title
       if (window.EventSource && META) {
-        try {
-          var es = new EventSource(META);
-          es.onmessage = function (ev) {
-            try { var d = JSON.parse(ev.data), t = (d.streamTitle || "").trim(); if (t) { song.textContent = t; now.style.display = "block"; } } catch (e) {}
-          };
-        } catch (e) {}
+        var es = null, lastMsg = 0, lastOpen = 0;
+        var applyTitle = function (t) {
+          t = (t || "").trim();
+          if (!t) return;
+          if (song.textContent !== t) song.textContent = t;
+          now.style.display = "block";
+        };
+        var openMeta = function (force) {
+          var tn = Date.now();
+          if (!force && tn - lastOpen < 8000) return;
+          lastOpen = tn;
+          try { if (es) es.close(); } catch (e) {}
+          try {
+            es = new EventSource(META);
+            lastMsg = tn;
+            es.onmessage = function (ev) {
+              lastMsg = Date.now();
+              try { applyTitle(JSON.parse(ev.data).streamTitle); } catch (e) {}
+            };
+            es.addEventListener("ping", function () { lastMsg = Date.now(); });
+          } catch (e) {}
+        };
+        openMeta(true);
+        setInterval(function () { if (!document.hidden && Date.now() - lastMsg > 25000) openMeta(true); }, 10000);
+        document.addEventListener("visibilitychange", function () { if (!document.hidden) openMeta(true); });
+        audio.addEventListener("playing", function () { openMeta(false); });
       }
     })();
 
@@ -1092,51 +1112,93 @@ JFM_APPLY(window.JFM_CFG);
 })();
 </script>
 <script>
-/* ART COVER: hinahanap ang cover ng kantang tumutugtog (iTunes Search) */
+/* ART COVER: hinahanap ang cover ng kantang tumutugtog (iTunes Search) - may retry at fallback */
 (function(){
   var tEl=document.getElementById("songtitle"),img=document.getElementById("songArt");
   if(!tEl||!img||!window.MutationObserver)return;
-  var cache={},cur="",n=0;
-  function norm(x){return String(x||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim()}
+  var cache={},cur="",n=0,tries=0,token=0;
+  function norm(x){return String(x||"").toLowerCase().replace(/['\u2019`]/g,"").replace(/&/g," and ").replace(/[^a-z0-9]+/g," ").trim()}
   function clean(t){
     return t.replace(/\([^)]*\)|\[[^\]]*\]/g," ").replace(/\b(feat|ft|featuring)\.?\b.*$/i,"").replace(/\s[-\u2013\u2014]\s/g," ").replace(/\s\.\s/g," ").replace(/\s+/g," ").trim();
   }
   function show(u){
-    window.JFM_ART=u||"";
-    if(u){img.onerror=function(){img.hidden=true;window.JFM_ART="";window.jfmSetMeta&&window.jfmSetMeta(tEl.textContent)};img.src=u;img.hidden=false}
-    else{img.hidden=true;img.removeAttribute("src")}
+    var my=++token;
+    window.JFM_ART="";
+    img.hidden=true;img.removeAttribute("src");
     window.jfmSetMeta&&window.jfmSetMeta(tEl.textContent);
+    if(!u)return;
+    var pre=new Image();
+    pre.onload=function(){
+      if(my!==token)return;
+      window.JFM_ART=u;img.src=u;img.hidden=false;
+      window.jfmSetMeta&&window.jfmSetMeta(tEl.textContent);
+    };
+    pre.onerror=function(){};
+    pre.src=u;
   }
-  function search(term,cb){
+  function viaScript(term,cb){
     var cbn="jfmArt"+(++n),sc=document.createElement("script"),done=false;
     function fin(r){if(done)return;done=true;try{delete window[cbn]}catch(e){window[cbn]=undefined}if(sc.parentNode)sc.parentNode.removeChild(sc);cb(r)}
     window[cbn]=function(r){fin(r)};
     sc.onerror=function(){fin(null)};
     setTimeout(function(){fin(null)},7000);
-    sc.src="https://itunes.apple.com/search?media=music&entity=song&limit=8&term="+encodeURIComponent(term)+"&callback="+cbn;
+    sc.src="https://itunes.apple.com/search?media=music&entity=song&limit=10&term="+encodeURIComponent(term)+"&callback="+cbn;
     document.head.appendChild(sc);
   }
+  function viaFetch(term,cb){
+    if(!window.fetch){cb(null);return}
+    var ctl=window.AbortController?new AbortController():null,tm=setTimeout(function(){ctl&&ctl.abort();},7000);
+    fetch("https://itunes.apple.com/search?media=music&entity=song&limit=10&term="+encodeURIComponent(term),ctl?{signal:ctl.signal}:{})
+      .then(function(r){return r.json()}).then(function(j){clearTimeout(tm);cb(j)}).catch(function(){clearTimeout(tm);cb(null)});
+  }
+  function search(term,cb){
+    viaScript(term,function(r){ if(r){cb(r);return} viaFetch(term,cb); });
+  }
+  function art(r){return r.artworkUrl100?r.artworkUrl100.replace(/\/\d+x\d+(bb)?\.(jpg|png)/,"/600x600bb.$2"):""}
   function pick(res,title){
-    var nt=norm(title),i,r,tn;
+    var nt=norm(title),pad=" "+nt+" ",i,r,tn,an,tw,hit,k;
     if(!res||!res.results)return "";
     for(i=0;i<res.results.length;i++){
       r=res.results[i];tn=norm(r.trackName);
-      if(tn&&r.artworkUrl100&&(" "+nt+" ").indexOf(" "+tn+" ")>-1)return r.artworkUrl100.replace(/\/\d+x\d+(bb)?\.(jpg|png)/,"/600x600bb.$2");
+      if(tn&&r.artworkUrl100&&pad.indexOf(" "+tn+" ")>-1)return art(r);
+    }
+    for(i=0;i<res.results.length;i++){
+      r=res.results[i];an=norm(r.artistName);tn=norm(r.trackName);
+      if(!r.artworkUrl100||!an||!tn||pad.indexOf(" "+an+" ")<0)continue;
+      tw=tn.split(" ");hit=0;
+      for(k=0;k<tw.length;k++)if(pad.indexOf(" "+tw[k]+" ")>-1)hit++;
+      if(hit/tw.length>=0.7)return art(r);
     }
     return "";
   }
+  function lookup(t){
+    var mine=t;
+    search(clean(t),function(res){
+      if(cur!==mine)return;
+      if(res===null){
+        if(tries<3){tries++;setTimeout(function(){if(cur===mine)lookup(mine)},4000*tries)}
+        return;
+      }
+      var u=pick(res,t);
+      if(u)cache[mine]=u;
+      show(u);
+    });
+  }
   function update(){
     var t=(tEl.textContent||"").trim();
-    if(t===cur)return;cur=t;
+    if(t===cur)return;cur=t;tries=0;
     show("");
     if(!t||/^jeianne\s*fm$/i.test(t))return;
     if(cache.hasOwnProperty(t)){show(cache[t]);return}
-    var mine=t;
-    search(clean(t),function(res){
-      var u=pick(res,t);cache[mine]=u;
-      if(cur===mine)show(u);
-    });
+    lookup(t);
   }
+  /* kung walang art pa rin, subukan ulit paminsan-minsan (hanggang 4 beses) */
+  var again=0,lastT="";
+  setInterval(function(){
+    if(!cur||window.JFM_ART||/^jeianne\s*fm$/i.test(cur))return;
+    if(lastT!==cur){lastT=cur;again=0}
+    if(again>=4)return;again++;lookup(cur);
+  },45000);
   new MutationObserver(update).observe(tEl,{childList:true,characterData:true,subtree:true});
   update();
 })();
