@@ -545,7 +545,7 @@ window.JFM_LOGO="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BS
       <section class="section" id="chatroom" aria-label="JEIANNE FM chatroom">
         <h2>💬 CHATROOM</h2>
         <p class="sub">Makipag-chat sa ibang listeners ng JEIANNE FM.</p>
-        <div id="chatbox"><div class="jfeed" id="jfChat" aria-live="polite"></div><form class="jform" id="jfChatF"><input id="jfNick" maxlength="24" placeholder="Palayaw mo" aria-label="Palayaw mo" autocomplete="nickname"><input id="jfMsg" maxlength="240" placeholder="Mensahe" aria-label="Mensahe" autocomplete="off"><button class="btn" type="submit">IPADALA</button></form><p class="jnote">Naka-save sa browser na ito ang chat at requests.</p></div>
+        <div id="chatbox"><div class="jfeed" id="jfChat" aria-live="polite"></div><form class="jform" id="jfChatF"><input id="jfNick" maxlength="24" placeholder="Palayaw mo" aria-label="Palayaw mo" autocomplete="nickname"><input id="jfMsg" maxlength="240" placeholder="Mensahe" aria-label="Mensahe" autocomplete="off"><button class="btn" type="submit">IPADALA</button></form><p class="jnote">Makikita ng lahat ng listeners ang chat at requests. Maging magalang po.</p></div>
       </section>
 
       <section class="section" id="requests" aria-label="Song request box">
@@ -596,40 +596,54 @@ window.JFM_LOGO="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BS
     })();
   </script>
   <script>
-    // === CHAT + REQUEST BOX (naka-save sa browser na ito) ===
+    // === CHAT + REQUEST BOX (public: shared sa lahat via /api/chat at /api/requests) ===
     (function(){
+      var $=function(i){return document.getElementById(i)};
       function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
       function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
-      function uid(){return Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,6)}
-      function load(k){var a;try{a=JSON.parse(ls(k)||"[]")}catch(e){a=[]}if(!Array.isArray(a))a=[];a.forEach(function(d){if(!d.id)d.id=uid()});return a}
       function ago(t){var m=Math.round((Date.now()-t)/60000);return m<1?"ngayon":m<60?m+" min":m<1440?Math.round(m/60)+" oras":Math.round(m/1440)+" araw"}
-      var chat=load("jfm-chat"),reqs=load("jfm-reqs");
-      var elC=document.getElementById("jfChat"),elR=document.getElementById("jfReqs");
-      if(!elC||!elR)return;
-      function paintChat(){
-        var l=chat.slice(-50);
+      var elC=$("jfChat"),elR=$("jfReqs");if(!elC||!elR)return;
+      var jn=document.querySelector("#chatroom .jnote");
+      function note(t){if(jn)jn.textContent=t}
+      function get(u){return fetch(u,{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).catch(function(){return null})}
+      function post(u,b){return fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}).then(function(r){return r.json().catch(function(){return{}}).then(function(j){j.ok=r.ok;return j})}).catch(function(){return{ok:false,error:"Walang koneksyon."}})}
+      var cSig="",rSig="";
+      function paintChat(l){
+        if(!l||!Array.isArray(l))return;var sig=JSON.stringify(l.map(function(d){return d.id}));if(sig===cSig)return;
+        var first=!cSig;cSig=sig;
+        var near=elC.scrollHeight-elC.scrollTop-elC.clientHeight<80;
         elC.innerHTML=l.length?l.map(function(d){return '<div class="jm"><b>'+esc(d.nick)+'</b>'+esc(d.text)+'<time>'+ago(d.ts)+'</time></div>'}).join(""):'<div class="jempty">Wala pang usapan. Ikaw ang mauna.</div>';
-        elC.scrollTop=elC.scrollHeight;
+        if(near||first)elC.scrollTop=elC.scrollHeight;
       }
-      function paintReq(){
-        document.getElementById("jfRCount").textContent=reqs.length?reqs.length+" request ang naipadala mo mula sa device na ito.":"";
-        elR.innerHTML=reqs.length?reqs.slice().reverse().map(function(d){return '<div class="jm"><b>'+esc(d.song)+'</b>'+(d.artist?'· '+esc(d.artist):'')+(d.greet?'<div class="jsub">“'+esc(d.greet)+'”</div>':'')+'<div class="jsub">'+esc(d.name||"Anonymous")+' · '+ago(d.ts)+'</div></div>'}).join(""):"";
+      function paintReq(l){
+        if(!l||!Array.isArray(l))return;var sig=JSON.stringify(l.map(function(d){return d.id}));if(sig===rSig)return;rSig=sig;
+        $("jfRCount").textContent=l.length?"Mga huling request ng lahat:":"";
+        elR.innerHTML=l.map(function(d){return '<div class="jm"><b>'+esc(d.song)+'</b>'+(d.artist?' · '+esc(d.artist):'')+(d.greet?'<div class="jsub">“'+esc(d.greet)+'”</div>':'')+'<div class="jsub">'+esc(d.name||"Anonymous")+' · '+ago(d.ts)+'</div></div>'}).join("");
       }
-      var n=ls("jfm-nick");if(n)document.getElementById("jfNick").value=n;
-      document.getElementById("jfChatF").addEventListener("submit",function(e){
+      function refresh(){if(document.hidden)return;get("/api/chat").then(paintChat);get("/api/requests").then(paintReq)}
+      var n=ls("jfm-nick");if(n)$("jfNick").value=n;
+      note("Makikita ng lahat ng listeners ang chat at requests. Maging magalang po.");
+      $("jfChatF").addEventListener("submit",function(e){
         e.preventDefault();
-        var nick=document.getElementById("jfNick").value.trim()||"Bisita",m=document.getElementById("jfMsg").value.trim();if(!m)return;
-        ls("jfm-nick",nick);chat=load("jfm-chat");chat.push({id:uid(),nick:nick,text:m,ts:Date.now()});chat=chat.slice(-200);ls("jfm-chat",JSON.stringify(chat));
-        document.getElementById("jfMsg").value="";paintChat();
+        var nick=$("jfNick").value.trim()||"Bisita",m=$("jfMsg").value.trim();if(!m)return;
+        var btn=e.target.querySelector("button");btn.disabled=true;
+        post("/api/chat",{nick:nick,text:m}).then(function(r){
+          btn.disabled=false;
+          if(r.ok){ls("jfm-nick",nick);$("jfMsg").value="";note("Makikita ng lahat ng listeners ang chat at requests. Maging magalang po.");get("/api/chat").then(paintChat)}
+          else note(r.error||"Hindi naipadala. Subukan ulit.");
+        });
       });
-      document.getElementById("jfReqF").addEventListener("submit",function(e){
+      $("jfReqF").addEventListener("submit",function(e){
         e.preventDefault();
-        var song=document.getElementById("jfSong").value.trim();if(!song)return;
-        reqs=load("jfm-reqs");reqs.push({id:uid(),song:song,artist:document.getElementById("jfArt").value.trim(),greet:document.getElementById("jfGreet").value.trim(),name:document.getElementById("jfName").value.trim(),ts:Date.now()});
-        ls("jfm-reqs",JSON.stringify(reqs));e.target.reset();paintReq();document.getElementById("jfRNote").textContent="Naipadala na ang request mo.";
+        var f=e.target,btn=f.querySelector("button"),rn=$("jfRNote");btn.disabled=true;
+        post("/api/requests",{song:$("jfSong").value,artist:$("jfArt").value,greet:$("jfGreet").value,name:$("jfName").value}).then(function(r){
+          btn.disabled=false;
+          if(r.ok){f.reset();rn.textContent="Naipadala na ang request mo.";get("/api/requests").then(paintReq)}
+          else rn.textContent=r.error||"Hindi naipadala. Subukan ulit.";
+        });
       });
-      window.addEventListener("storage",function(){chat=load("jfm-chat");reqs=load("jfm-reqs");paintChat();paintReq()});
-      paintChat();paintReq();
+      refresh();setInterval(refresh,5000);
+      document.addEventListener("visibilitychange",function(){if(!document.hidden)refresh()});
     })();
   </script>
   <script>
