@@ -559,7 +559,7 @@ window.JFM_LOGO="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BS
       <section class="section" id="socials" aria-label="Social media">
         <h2>🔗 SOCIAL MEDIA</h2>
         <p class="sub">Sundan kami sa social media.</p>
-        <div id="socList" class="soc-row"><a class="btn soc" href="https://www.facebook.com/share/14uc4TN7GYc/" target="_blank" rel="noopener noreferrer">📘 FACEBOOK PAGES</a><div class="dlbox"><p class="dltxt">Click the blue button to download the app</p><a class="dlbtn" href="https://drive.google.com/file/d/17ZKt8UpvjZdIi2EqtMs6_-2ysP2LSekD/view?usp=drivesdk" target="_blank" rel="noopener noreferrer">⬇ DOWNLOAD THE APP</a></div></div>
+        <div id="socList" class="soc-row"><a class="btn soc" href="https://www.facebook.com/share/14uc4TN7GYc/" target="_blank" rel="noopener noreferrer">📘 FACEBOOK PAGES</a><div class="dlbox"><p class="dltxt">Click the blue button to download the app</p><a class="dlbtn" href="https://drive.google.com/file/d/17ZKt8UpvjZdIi2EqtMs6_-2ysP2LSekD/view?usp=drivesdk" target="_blank" rel="noopener noreferrer">DOWNLOAD THE APP</a></div></div>
       </section>
       <p class="about">JEIANNE FM brings music and good vibes straight to you. Tune in and enjoy the sound.</p>
     </main>
@@ -880,6 +880,10 @@ window.JFM_APPLY=function(c){
   put("#chatroom h2","chatH");put("#chatroom .sub","chatS");
   put("#requests h2","reqH");put("#requests .sub","reqS");
   put(".powered","powered");
+  var dlb=document.querySelector("#socList .dlbtn");
+  if(dlb){if(typeof tx.dlT==="string"&&tx.dlT.trim())dlb.textContent=tx.dlT.trim();if(ok(c.dlUrl))dlb.href=c.dlUrl;}
+  var fbb=document.querySelector("#socList a.soc");
+  if(fbb){if(typeof tx.fbT==="string"&&tx.fbT.trim())fbb.textContent=tx.fbT.trim();if(ok(c.fbUrl))fbb.href=c.fbUrl;}
   if(typeof tx.foot==="string"&&tx.foot.trim()){var y=document.getElementById("year");if(y&&y.nextSibling&&y.nextSibling.nodeType===3)y.nextSibling.nodeValue=" "+tx.foot.trim();}
   if(typeof tx.pageTitle==="string"&&tx.pageTitle.trim())document.title=tx.pageTitle.trim();
   if(ok(c.streamUrl)){a=document.getElementById("jpOpen");if(a)a.href=c.streamUrl;}
