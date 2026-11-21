@@ -2,6 +2,7 @@
 // POST /api/config  -> { password, check:true }  o  { password, config:{...} }
 const crypto = require("crypto");
 const store = require("./_store");
+const { isAdmin } = require("./_lib");
 
 const KEY = "jfm:config";
 const sha = (s) => crypto.createHash("sha256").update(String(s)).digest();
@@ -60,7 +61,7 @@ module.exports = async (req, res) => {
     if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = {}; } }
     body = body || {};
 
-    if (!passwordOk(body.password)) {
+    if (!isAdmin(req) && !passwordOk(body.password)) {
       await new Promise((r) => setTimeout(r, 600));
       return res.status(401).send(JSON.stringify({ error: "Maling password." }));
     }
