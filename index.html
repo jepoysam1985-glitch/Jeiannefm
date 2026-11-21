@@ -872,6 +872,7 @@ window.JFM_LOGO="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BS
         try {
           var es = new EventSource(META);
           es.onmessage = function (ev) {
+            if (window.JFM_NP && window.JFM_NP.title) return;
             try { var d = JSON.parse(ev.data), t = (d.streamTitle || "").trim(); if (t) { song.textContent = t; now.style.display = "block"; } } catch (e) {}
           };
         } catch (e) {}
@@ -1129,6 +1130,7 @@ JFM_APPLY(window.JFM_CFG);
     var t=(tEl.textContent||"").trim();
     if(t===cur)return;cur=t;
     show("");
+    if(t&&window.JFM_NP&&window.JFM_NP.cover&&norm(t).indexOf(norm(window.JFM_NP.title))>-1){show(window.JFM_NP.cover);return}
     if(!t||/^jeianne\s*fm$/i.test(t))return;
     if(cache.hasOwnProperty(t)){show(cache[t]);return}
     var mine=t;
@@ -1139,6 +1141,29 @@ JFM_APPLY(window.JFM_CFG);
   }
   new MutationObserver(update).observe(tEl,{childList:true,characterData:true,subtree:true});
   update();
+})();
+</script>
+<script>
+/* NOW PLAYING mula sa DJ app: title + cover art (galing sa /api/nowplaying) */
+(function(){
+  if(location.hash==="#admin")return;
+  var tEl=document.getElementById("songtitle"),now=document.getElementById("nowplaying"),img=document.getElementById("songArt"),busy=false;
+  if(!tEl||!now||!img)return;
+  function apply(d){
+    var t=d&&typeof d.title==="string"?d.title.trim():"";
+    if(!t){window.JFM_NP=null;return}
+    var cv=typeof d.cover==="string"&&/^data:image\//.test(d.cover)?d.cover:"";
+    window.JFM_NP={title:t,cover:cv};
+    now.style.display="block";
+    if(tEl.textContent!==t)tEl.textContent=t;
+    if(cv&&img.getAttribute("src")!==cv){window.JFM_ART=cv;img.onerror=function(){img.hidden=true};img.src=cv;img.hidden=false;if(window.jfmSetMeta)window.jfmSetMeta(t)}
+  }
+  function poll(){
+    if(busy||document.hidden)return;busy=true;
+    fetch("/api/nowplaying?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(d){busy=false;if(d)apply(d)}).catch(function(){busy=false});
+  }
+  poll();setInterval(poll,6000);
+  document.addEventListener("visibilitychange",function(){if(!document.hidden)poll()});
 })();
 </script>
 </body>
